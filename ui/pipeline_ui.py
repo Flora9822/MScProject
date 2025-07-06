@@ -1,6 +1,7 @@
-from PySide2 import QtWidgets, QtCore
+from PySide2 import QtWidgets
 import maya.OpenMayaUI as omui
 from shiboken2 import wrapInstance
+from import_cleanup_prototype import batch_import_and_cleanup
 
 def maya_main_window():
     ptr = omui.MQtUtil.mainWindow()
@@ -10,55 +11,74 @@ class PipelineToolUI(QtWidgets.QDialog):
     def __init__(self):
         super(PipelineToolUI, self).__init__(parent=maya_main_window())
         self.setWindowTitle("Asset Import & Prep Tool")
-        self.setMinimumWidth(300)
+        self.setMinimumWidth(320)
         self.build_ui()
 
     def build_ui(self):
         layout = QtWidgets.QVBoxLayout(self)
 
-        # 1. Directory selection
-        self.dir_line_edit = QtWidgets.QLineEdit()
-        browse_button = QtWidgets.QPushButton("Browse")
-        browse_button.clicked.connect(self.choose_folder)
-        dir_layout = QtWidgets.QHBoxLayout()
-        dir_layout.addWidget(self.dir_line_edit)
-        dir_layout.addWidget(browse_button)
-        layout.addLayout(dir_layout)
+        # Directory selection
+        hl = QtWidgets.QHBoxLayout()
+        self.dir_line = QtWidgets.QLineEdit()
+        browse = QtWidgets.QPushButton("Browse...")
+        browse.clicked.connect(self.choose_folder)
+        hl.addWidget(self.dir_line)
+        hl.addWidget(browse)
+        layout.addLayout(hl)
 
-        # 2. Import & Clean button
-        self.run_button = QtWidgets.QPushButton("Import & Clean")
-        self.run_button.clicked.connect(self.on_run)
-        layout.addWidget(self.run_button)
+        # Naming convention
+        self.naming_cb = QtWidgets.QCheckBox("Enable Naming Convention")
+        self.naming_cb.setChecked(True)
+        layout.addWidget(self.naming_cb)
 
-        # 3. Log output area
+        # Path repair
+        self.path_cb = QtWidgets.QCheckBox("Enable Path Repair")
+        self.path_cb.setChecked(True)
+        layout.addWidget(self.path_cb)
+
+        # Namespace cleanup
+        self.ns_cb = QtWidgets.QCheckBox("Enable Namespace Cleanup")
+        self.ns_cb.setChecked(True)
+        layout.addWidget(self.ns_cb)
+
+        # Run button
+        self.run_btn = QtWidgets.QPushButton("Import & Clean")
+        self.run_btn.clicked.connect(self.on_run)
+        layout.addWidget(self.run_btn)
+
+        # Log output
         self.log_output = QtWidgets.QPlainTextEdit()
         self.log_output.setReadOnly(True)
         layout.addWidget(self.log_output)
 
     def choose_folder(self):
-        selected_dir = QtWidgets.QFileDialog.getExistingDirectory(self, "Select Asset Folder")
-        if selected_dir:
-            self.dir_line_edit.setText(selected_dir)
+        sel = QtWidgets.QFileDialog.getExistingDirectory(self, "Select Asset Folder")
+        if sel:
+            self.dir_line.setText(sel)
 
     def on_run(self):
-        # Disable the run button to prevent multiple clicks
-        self.run_button.setEnabled(False)
+        self.run_btn.setEnabled(False)
         self.log_output.clear()
 
-        # Redirect stdout to the log output widget
+        # Redirect print to log widget
         import sys
-        class ConsoleStream:
-            def write(inner_self, message):
-                self.log_output.appendPlainText(message)
-        sys.stdout = ConsoleStream()
+        class Stream:
+            def write(inner, m): 
+                self.log_output.appendPlainText(m)
+        sys.stdout = Stream()
 
-        # Execute batch import, cleanup, and renaming
-        from import_cleanup_prototype import batch_import_and_cleanup
-        batch_import_and_cleanup()
+        # Gather options
+        folder = self.dir_line.text().strip() or None
+        naming = self.naming_cb.isChecked()
+        path_repair = self.path_cb.isChecked()
+        ns_cleanup = self.ns_cb.isChecked()
 
-        # Restore stdout and re-enable the button
+        # Run the pipeline
+        batch_import_and_cleanup(folder, naming, path_repair, ns_cleanup)
+
+        # Restore and finish
         sys.stdout = sys.__stdout__
-        self.run_button.setEnabled(True)
+        self.run_btn.setEnabled(True)
 
 def show_pipeline_ui():
     global _pipeline_tool
