@@ -1,0 +1,14 @@
+{
+    "naming": {
+      "prefix": "ASSET_",
+      "sanitizePattern": "[^A-Za-z0-9_]"
+    },
+    "cleanup": {
+      "deleteEmptyGroups": true,
+      "namespaceCleanup": true
+    },
+    "pathRepair": {
+      "autoFix": true
+    }
+  }
+  
