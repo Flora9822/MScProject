@@ -23,7 +23,7 @@ def test_preview_renaming(tmp_path):
     assert "sphere" in preview and preview["sphere"].startswith("ASSET_")
     assert "cone" in preview and preview["cone"].startswith("ASSET_")
 
-# 3. Test _collect_asset_files (if you expose it or wrap it)
+# 3. Test _collect_asset_files 
 def test_collect_asset_files(tmp_path):
     asset_dir = tmp_path / "col"
     asset_dir.mkdir()
