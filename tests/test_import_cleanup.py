@@ -27,10 +27,10 @@ def test_preview_renaming(tmp_path):
 def test_collect_asset_files(tmp_path):
     asset_dir = tmp_path / "col"
     asset_dir.mkdir()
-    for name in ["foo.ma", "bar.mb", "foo.usd"]:  # foo.ma 和 foo.usd 同名，但不同扩展
+    for name in ["foo.ma", "bar.mb", "foo.usd"]: 
         (asset_dir / name).touch()
     files = import_cleanup_prototype._collect_asset_files(str(asset_dir))
-    assert len(files) == 2  # foo, bar; foo 只保留一个
+    assert len(files) == 2 
 
 # 4. Test batch_import_and_cleanup can run without error (mock Maya cmds)
 def test_batch_import_and_cleanup(monkeypatch, tmp_path):
