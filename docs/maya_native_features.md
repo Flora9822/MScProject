@@ -1,3 +1,4 @@
+#/docs/maya_native_features.md
 # Maya Native Feature Inventory
 
 | Feature                    | Maya Native Support | Usability | Notes / Pain Points                           |

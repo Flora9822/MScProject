@@ -1,3 +1,14 @@
+# Python
 __pycache__/
 *.pyc
+
+# VSCode 
+.vscode/
+*.idea/
+
+# Maya
+*.log
+
+# virtual environment
 venv/
+.venv/

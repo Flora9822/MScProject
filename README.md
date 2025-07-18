@@ -1,129 +1,145 @@
 
 # Asset Import & Prep Tool for Maya + USD
 
-A simple pipeline tool for batch importing, cleanup, and management of 3D assets in Maya, with support for USD (Universal Scene Description) reference, namespace, and naming conventions.
+A simple pipeline tool for batch importing, cleanup, and management of 3D assets in Maya, with support for USD (Universal Scene Description) reference, namespace, naming conventions, and collision-safe numbering.
 
 ---
 
-## Features
+##  Features
 
-* Batch import multiple assets (FBX, OBJ, MA, MB, USD, USDA, ABC)
-* **USD Import**: as *reference* or *as nodes*
-* Namespace and naming convention enforcement
-* Automatic cleanup of empty groups and namespaces
-* Path repair for broken asset references
-* Quick export of selection to USD
-* **USD Layer & Variant browser** (experimental, for inspection)
-
----
-
-## Requirements
-
-* **Autodesk Maya** 2022+ (with USD support)
-* `mayaUsdPlugin` enabled
-* Python 3 (built-in for Maya 2022+)
-* [PySide2](https://wiki.qt.io/Qt_for_Python) (comes with Maya 2022+)
-* [pxr.Usd](https://github.com/PixarAnimationStudios/USD) (Maya built-in)
+- **Batch import** multiple assets (FBX, OBJ, MA, MB, USD, USDA, ABC, GLTF/GLB)  
+- **USD Import**: choose *Import as Reference* or *Import as Nodes*  
+- **Preview Renaming**: see before-and-after names for all assets  
+- **Collision-safe naming**: automatically appends `_001`, `_002`, … when a name already exists  
+- **Batch Path Repair**: one-click fix of all missing file paths (textures, references)  
+- **Empty-group cleanup**: delete transform nodes with no children or shapes  
+- **Namespace cleanup**: merge & remove all non-UI namespaces  
+- **Viewport refresh** after processing  
+- **Export Selection to USD**  
+- **USD Layer & Variant Browser** (experimental)  
 
 ---
 
-## Installation
+##  Requirements
 
-1. **Clone or copy the repository files** into your Maya scripts folder or your own project folder, e.g.:
-
-   ```
-   /home/<your-username>/Documents/MScProject/src/
-   /home/<your-username>/Documents/MScProject/ui/
-   ```
-
-2. Place your **assets** (FBX, USD, etc) in a dedicated folder, e.g.:
-
-   ```
-   /home/<your-username>/Documents/MScProject/test_assets/
-   ```
-
-3. Make sure the following files are present:
-
-   * `src/import_cleanup_prototype.py`
-   * `ui/pipeline_ui.py`
-   * `src/rules/pipeline_rules.json` (example rules)
+- Autodesk Maya 2022+ (with USD support)  
+- `mayaUsdPlugin` enabled  
+- Python 3.9+ (bundled with Maya 2022+)  
+- PySide2 (bundled with Maya)  
+- pxr.Usd (Maya’s built-in USD Python API)  
 
 ---
 
-## Usage
+##  Installation
 
-1. **Open Maya**
+1. **Clone or copy** this repo into your Maya scripts location, for example:  
+```
 
-2. **Open the Script Editor** (`Windows > General Editors > Script Editor`) and switch to the **Python** tab.
+\~/Documents/MScProject/
+├── src/import\_cleanup\_prototype.py
+├── src/rules/pipeline\_rules.json
+└── ui/pipeline\_ui.py
 
-3. **Paste and run** the following snippet to load and display the UI:
+```
+2. Create a **test_assets/** folder alongside to hold your models:  
+```
 
-   ```python
-   import sys, importlib
-   for p in (
-       "/home/<your-username>/Documents/MScProject/src",
-       "/home/<your-username>/Documents/MScProject/ui"
-   ):
-       if p not in sys.path:
-           sys.path.append(p)
-   import import_cleanup_prototype, pipeline_ui
-   importlib.reload(import_cleanup_prototype)
-   importlib.reload(pipeline_ui)
-   pipeline_ui.show_pipeline_ui()
-   ```
+\~/Documents/MScProject/test\_assets/
 
-   *(Replace `<your-username>` with your actual username or adjust the path as needed.)*
-
-4. **The "Asset Import & Prep Tool" window will appear.**
+````
+3. Make sure your `pipeline_rules.json` lives in `src/rules/`.  
 
 ---
 
-## Typical Workflow
+## ▶️ Usage
 
-* **Set asset directory** with the *Browse…* button.
-* Select USD import mode: *Import as Nodes* or *Import as Reference*.
-* (Optionally) Enable/disable naming, path repair, and namespace cleanup.
-* Click **Import & Clean** to import and process all assets in the chosen folder.
-* (Optional) Check the "USD Layers & Variants" panel to browse referenced USD file structure.
-* (Optional) Export current selection to USD using the "Export Selection to USD" button.
+1. **Launch Maya**  
+2. Open **Script Editor** → **Python** tab  
+3. **Paste & run**:
+```python
+import sys, importlib
+
+# adjust these paths to your setup
+for p in [
+    "/home/you/Documents/MScProject/src",
+    "/home/you/Documents/MScProject/ui"
+]:
+    if p not in sys.path:
+        sys.path.append(p)
+
+import import_cleanup_prototype, pipeline_ui
+importlib.reload(import_cleanup_prototype)
+importlib.reload(pipeline_ui)
+
+# show the tool
+pipeline_ui.show_pipeline_ui()
+````
+
+4. The **Asset Import & Prep Tool** window will pop up.
 
 ---
 
-## Known Limitations / FAQ
+## ⚙️ Typical Workflow
 
-* USD **variant switching** only affects the underlying USD reference; if geometry does not visually change, the USD file may not encode visible variant differences.
-* "Cannot rename a read only node" and "Cannot delete ... as it has locked or read-only children" messages are normal for referenced USD data (cannot edit referenced nodes directly).
-* Some imported USDs from Omniverse/Pixar may require external textures or internet access to fully load their assets.
-* If the UI window does not appear, check the Script Editor for errors, make sure the paths are correct, and that your Maya has USD/PySide2 support.
-* For custom pipeline rules, edit `src/rules/pipeline_rules.json` and reload rules from the UI.
+1. **Load Rules** (optional) — pick a different `pipeline_rules.json`
+2. **Browse…** to select your asset folder
+3. **Preview Renaming** — verify sanitized, prefixed names & collision numbering
+4. Check or uncheck:
+
+   * **Enable Naming (prefix=...)**
+   * **Enable Path Repair**
+   * **Enable Namespace Cleanup**
+5. (New!) **Batch Path Repair** — fixes missing paths without re-importing
+6. Set **USD Import Mode**
+7. Click **Import & Clean**
+8. Watch the **log panel** for progress & messages
+9. (If “Import as Reference” is on) expand **USD Layers & Variants** to browse
+10. **Export Selection to USD** when you want to publish your Maya selection
 
 ---
 
-## Example USD Variant Generation (for testing)
+##  Architecture Diagram
 
-You can generate a simple USD file with variants for testing:
+![Architecture Diagram](docs/architecture_diagram.png)
+
+---
+
+##  Known Limitations & FAQ
+
+* **Collision-safe naming** only applies to nodes in the current scene, not on-disk files.
+* **Referenced USD nodes** can’t be renamed or deleted (read-only).
+* If the UI fails to appear, verify your `sys.path` entries and that Maya’s Python tab is active.
+* You can manually trigger **Batch Path Repair** at any time to fix broken texture references.
+
+---
+
+##  Example: Generate Test USD with Variants
 
 ```python
 import os
 from pxr import Usd, UsdGeom
 
-usd_path = "/home/<your-username>/Documents/MScProject/test_assets/variants_test_demo.usda"
+usd_path = "/home/you/Documents/MScProject/test_assets/variants_test_demo.usda"
 if os.path.exists(usd_path):
     os.remove(usd_path)
 
 stage = Usd.Stage.CreateNew(usd_path)
-cube = UsdGeom.Cube.Define(stage, "/Cube")
-vset = cube.GetPrim().GetVariantSets().AddVariantSet("LOD")
+cube  = UsdGeom.Cube.Define(stage, "/Cube")
+vset  = cube.GetPrim().GetVariantSets().AddVariantSet("LOD")
 vset.AddVariant("high")
 vset.AddVariant("low")
 vset.SetVariantSelection("high")
 stage.GetRootLayer().Save()
-print(" Created test USD with variants at:", usd_path)
+
+print("Created test USD with variants at:", usd_path)
 ```
 
 ---
 
-## License
+##  LICENSE
 
-MIT © 2025 Flora/MScProject.
+This project is licensed under the **MIT License**.
+© 2025 Flora / MScProject
+
+```
 
