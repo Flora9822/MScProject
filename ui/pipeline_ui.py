@@ -53,7 +53,7 @@ class PipelineToolUI(QtWidgets.QDialog):
 
         self.preview_table = QtWidgets.QTableWidget(0, 2)
         self.preview_table.setHorizontalHeaderLabels(["Original", "New Name"])
-        # 等宽拉伸
+      
         self.preview_table.horizontalHeader().setSectionResizeMode(0, QtWidgets.QHeaderView.Stretch)
         self.preview_table.horizontalHeader().setSectionResizeMode(1, QtWidgets.QHeaderView.Stretch)
         layout.addWidget(self.preview_table)
@@ -131,7 +131,7 @@ class PipelineToolUI(QtWidgets.QDialog):
             self.dir_line.setText(sel)
 
     def on_preview(self):
-        """预览重命名映射（含自动续号）"""
+      
         folder = self.dir_line.text().strip() or None
         try:
             mapping = import_cleanup_prototype.preview_renaming(folder)
@@ -147,7 +147,6 @@ class PipelineToolUI(QtWidgets.QDialog):
             self.preview_table.setItem(r, 1, QtWidgets.QTableWidgetItem(new))
 
     def on_batch_repair(self):
-        """手动触发一次批量路径修复"""
         self.log_output.appendPlainText(">>> Running Batch Path Repair…")
         import_cleanup_prototype.fix_missing_paths()
 
@@ -167,13 +166,13 @@ class PipelineToolUI(QtWidgets.QDialog):
                 cmds.usdExport(file=path, selection=sel)
             else:
                 cmds.file(path, exportSelected=True, type='USD Export')
-            self.log_output.appendPlainText(f"✅ Export complete: {path}")
+            self.log_output.appendPlainText(f" Export complete: {path}")
             if Usd:
                 st = Usd.Stage.Open(path)
                 cnt = sum(1 for _ in st.Traverse())
                 self.log_output.appendPlainText(f">>> USD stage has {cnt} prims.")
         except Exception as e:
-            self.log_output.appendPlainText(f"❌ Export failed: {e}")
+            self.log_output.appendPlainText(f" Export failed: {e}")
 
     def populate_usd_tree(self, usd_path):
         if not Usd:
@@ -225,10 +224,10 @@ class PipelineToolUI(QtWidgets.QDialog):
             cmds.file(rn, loadReference=True)
 
     def on_run(self):
-        """完整导入 & 清理流程"""
+        """Complete Import & Cleanup Process"""
         self.run_btn.setEnabled(False)
         self.log_output.clear()
-        # 重定向 stdout 到 UI
+        # Redirect stdout to UI
         import sys
         class Stream:
             def write(_, msg):
@@ -237,9 +236,9 @@ class PipelineToolUI(QtWidgets.QDialog):
             def flush(_): pass
         sys.stdout = Stream()
 
-        # 清空场景
+        # Empty the scene
         cmds.file(new=True, force=True)
-        # 同步选项
+        # Synchronization Options
         import_cleanup_prototype.USD_IMPORT_AS_REF   = self.radio_ref.isChecked()
         import_cleanup_prototype.USD_IMPORT_AS_NODES = self.radio_nodes.isChecked()
         import_cleanup_prototype.pipeline_rules['naming']['prefix']      = (
@@ -249,10 +248,10 @@ class PipelineToolUI(QtWidgets.QDialog):
         import_cleanup_prototype.pipeline_rules['pathRepair']['autoFix'] = self.path_cb.isChecked()
         import_cleanup_prototype.pipeline_rules['cleanup']['namespaceCleanup'] = self.ns_cb.isChecked()
 
-        # 执行批量导入与清理
+        # Perform batch import and cleanup
         import_cleanup_prototype.batch_import_and_cleanup(self.dir_line.text() or None)
 
-        # 如果引用模式则展示 USD 树
+        # Show USD tree if referencing schema
         if self.radio_ref.isChecked() and Usd:
             refs = cmds.file(query=True, reference=True) or []
             usd_refs = [f for f in refs if f.lower().endswith(('.usd','.usda'))]
@@ -260,7 +259,7 @@ class PipelineToolUI(QtWidgets.QDialog):
                 self.current_usd = usd_refs[0]
                 self.populate_usd_tree(self.current_usd)
 
-        # 恢复 stdout
+        # recover stdout
         sys.stdout = sys.__stdout__
         self.run_btn.setEnabled(True)
 

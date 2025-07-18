@@ -1,5 +1,3 @@
-# src/import_cleanup_prototype.py
-
 import os
 import re
 import json
