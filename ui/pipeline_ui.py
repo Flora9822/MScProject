@@ -12,9 +12,12 @@ except ImportError:
     Usd = None
     cmds.warning("pxr.Usd not available; USD export verification disabled.")
 
+
 def maya_main_window():
+    """Return Maya's main window as a QWidget."""
     ptr = omui.MQtUtil.mainWindow()
     return wrapInstance(int(ptr), QtWidgets.QWidget)
+
 
 class PipelineToolUI(QtWidgets.QDialog):
     def __init__(self):
@@ -27,38 +30,38 @@ class PipelineToolUI(QtWidgets.QDialog):
     def build_ui(self):
         layout = QtWidgets.QVBoxLayout(self)
 
-        # ── Rules Loader ───────────────────────────────────────────────
+        # Rules loader
         self.load_rules_btn = QtWidgets.QPushButton("Load Rules…")
         self.load_rules_btn.clicked.connect(self.load_rules)
         layout.addWidget(self.load_rules_btn)
 
-        # ── Asset Folder Selector ──────────────────────────────────────
-        h = QtWidgets.QHBoxLayout()
+        # Asset folder selector
+        folder_layout = QtWidgets.QHBoxLayout()
         self.dir_line = QtWidgets.QLineEdit()
-        btn = QtWidgets.QPushButton("Browse…")
-        btn.clicked.connect(self.choose_folder)
-        h.addWidget(self.dir_line)
-        h.addWidget(btn)
-        layout.addLayout(h)
+        browse_btn = QtWidgets.QPushButton("Browse…")
+        browse_btn.clicked.connect(self.choose_folder)
+        folder_layout.addWidget(self.dir_line)
+        folder_layout.addWidget(browse_btn)
+        layout.addLayout(folder_layout)
 
-        # ── Preview & Batch Path Repair ────────────────────────────────
-        row = QtWidgets.QHBoxLayout()
+        # Preview Renaming & Batch Path Repair
+        control_layout = QtWidgets.QHBoxLayout()
         self.preview_btn = QtWidgets.QPushButton("Preview Renaming")
         self.preview_btn.clicked.connect(self.on_preview)
         self.batch_repair_btn = QtWidgets.QPushButton("Batch Path Repair")
         self.batch_repair_btn.clicked.connect(self.on_batch_repair)
-        row.addWidget(self.preview_btn)
-        row.addWidget(self.batch_repair_btn)
-        layout.addLayout(row)
+        control_layout.addWidget(self.preview_btn)
+        control_layout.addWidget(self.batch_repair_btn)
+        layout.addLayout(control_layout)
 
+        # Preview table
         self.preview_table = QtWidgets.QTableWidget(0, 2)
         self.preview_table.setHorizontalHeaderLabels(["Original", "New Name"])
-      
         self.preview_table.horizontalHeader().setSectionResizeMode(0, QtWidgets.QHeaderView.Stretch)
         self.preview_table.horizontalHeader().setSectionResizeMode(1, QtWidgets.QHeaderView.Stretch)
         layout.addWidget(self.preview_table)
 
-        # ── Options ────────────────────────────────────────────────────
+        # Option checkboxes
         self.naming_cb = QtWidgets.QCheckBox()
         layout.addWidget(self.naming_cb)
         self.path_cb = QtWidgets.QCheckBox("Enable Auto Path Repair")
@@ -66,55 +69,57 @@ class PipelineToolUI(QtWidgets.QDialog):
         self.ns_cb = QtWidgets.QCheckBox("Enable Namespace Cleanup")
         layout.addWidget(self.ns_cb)
 
-        # ── USD Import Mode ─────────────────────────────────────────────
-        box = QtWidgets.QGroupBox("USD Import Mode")
-        hb = QtWidgets.QHBoxLayout(box)
+        # USD import mode radios
+        usd_group = QtWidgets.QGroupBox("USD Import Mode")
+        usd_layout = QtWidgets.QHBoxLayout(usd_group)
         self.radio_nodes = QtWidgets.QRadioButton("Import as Nodes")
-        self.radio_ref   = QtWidgets.QRadioButton("Import as Reference")
+        self.radio_ref = QtWidgets.QRadioButton("Import as Reference")
         self.radio_nodes.setChecked(True)
-        grp = QtWidgets.QButtonGroup(self)
-        grp.addButton(self.radio_nodes)
-        grp.addButton(self.radio_ref)
-        hb.addWidget(self.radio_nodes)
-        hb.addWidget(self.radio_ref)
-        layout.addWidget(box)
+        button_group = QtWidgets.QButtonGroup(self)
+        button_group.addButton(self.radio_nodes)
+        button_group.addButton(self.radio_ref)
+        usd_layout.addWidget(self.radio_nodes)
+        usd_layout.addWidget(self.radio_ref)
+        layout.addWidget(usd_group)
 
-        # ── USD Layers & Variants Tree ─────────────────────────────────
+        # USD layers & variants tree
         self.usd_group = QtWidgets.QGroupBox("USD Layers & Variants")
         self.usd_group.setCheckable(True)
         self.usd_group.setChecked(False)
-        vb = QtWidgets.QVBoxLayout(self.usd_group)
+        tree_layout = QtWidgets.QVBoxLayout(self.usd_group)
         self.usd_tree = QtWidgets.QTreeWidget()
         self.usd_tree.setHeaderLabels(["Path/Name", "Type", "Selected"])
         self.usd_tree.itemDoubleClicked.connect(self.on_variant_activate)
-        vb.addWidget(self.usd_tree)
+        tree_layout.addWidget(self.usd_tree)
         layout.addWidget(self.usd_group)
 
-        # ── Export & Run ───────────────────────────────────────────────
+        # Export selection to USD
         self.export_btn = QtWidgets.QPushButton("Export Selection to USD")
         self.export_btn.clicked.connect(self.on_usd_export)
         layout.addWidget(self.export_btn)
 
+        # Import & clean button
         self.run_btn = QtWidgets.QPushButton("Import & Clean")
         self.run_btn.clicked.connect(self.on_run)
         layout.addWidget(self.run_btn)
 
-        # ── Log Output ─────────────────────────────────────────────────
+        # Log output widget
         self.log_output = QtWidgets.QPlainTextEdit()
         self.log_output.setReadOnly(True)
         layout.addWidget(self.log_output)
 
     def update_ui_from_rules(self):
         rules = import_cleanup_prototype.pipeline_rules
-        pfx   = rules['naming']['prefix']
-        self.naming_cb.setText(f"Enable Naming (prefix={pfx})")
-        self.naming_cb.setChecked(bool(pfx))
+        prefix = rules['naming']['prefix']
+        self.naming_cb.setText(f"Enable Naming (prefix={prefix})")
+        self.naming_cb.setChecked(bool(prefix))
         self.path_cb.setChecked(rules['pathRepair']['autoFix'])
         self.ns_cb.setChecked(rules['cleanup']['namespaceCleanup'])
 
     def load_rules(self):
-        path, _ = QtWidgets.QFileDialog.getOpenFileName(self,
-            "Select Rules JSON", "", "JSON Files (*.json)")
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self, "Select Rules JSON", "", "JSON Files (*.json)"
+        )
         if not path:
             return
         try:
@@ -126,12 +131,11 @@ class PipelineToolUI(QtWidgets.QDialog):
         QtWidgets.QMessageBox.information(self, "Load Rules", f"Loaded from:\n{path}")
 
     def choose_folder(self):
-        sel = QtWidgets.QFileDialog.getExistingDirectory(self, "Select Asset Folder")
-        if sel:
-            self.dir_line.setText(sel)
+        folder = QtWidgets.QFileDialog.getExistingDirectory(self, "Select Asset Folder")
+        if folder:
+            self.dir_line.setText(folder)
 
     def on_preview(self):
-      
         folder = self.dir_line.text().strip() or None
         try:
             mapping = import_cleanup_prototype.preview_renaming(folder)
@@ -140,39 +144,57 @@ class PipelineToolUI(QtWidgets.QDialog):
             return
 
         self.preview_table.setRowCount(0)
-        for orig, new in mapping.items():
-            r = self.preview_table.rowCount()
-            self.preview_table.insertRow(r)
-            self.preview_table.setItem(r, 0, QtWidgets.QTableWidgetItem(orig))
-            self.preview_table.setItem(r, 1, QtWidgets.QTableWidgetItem(new))
+        for original, new_name in mapping.items():
+            row = self.preview_table.rowCount()
+            self.preview_table.insertRow(row)
+            self.preview_table.setItem(row, 0, QtWidgets.QTableWidgetItem(original))
+            self.preview_table.setItem(row, 1, QtWidgets.QTableWidgetItem(new_name))
 
     def on_batch_repair(self):
-        self.log_output.appendPlainText(">>> Running Batch Path Repair…")
-        import_cleanup_prototype.fix_missing_paths()
+        self.log_output.appendPlainText(">>> Batch Path Repair Start")
+
+        import sys
+        class Stream:
+            def write(inner, msg):
+                if msg.strip():
+                    self.log_output.appendPlainText(msg)
+            def flush(inner): pass
+
+        old_stdout = sys.stdout
+        sys.stdout = Stream()
+        try:
+            import_cleanup_prototype.fix_missing_paths()
+        except Exception as e:
+            self.log_output.appendPlainText(f"❌ Path repair failed: {e}")
+        sys.stdout = old_stdout
+
+        self.log_output.appendPlainText(">>> Batch Path Repair End\n")
 
     def on_usd_export(self):
-        sel = cmds.ls(selection=True, long=True)
-        if not sel:
+        selection = cmds.ls(selection=True, long=True)
+        if not selection:
             QtWidgets.QMessageBox.warning(self, "Export USD", "No selection.")
             return
+
         path, _ = QtWidgets.QFileDialog.getSaveFileName(
-            self, "Export USD", "", "USD Files (*.usd *.usda)")
+            self, "Export USD", "", "USD Files (*.usd *.usda)"
+        )
         if not path:
             return
 
-        self.log_output.appendPlainText(f">>> Exporting {len(sel)} to {path} …")
+        self.log_output.appendPlainText(f">>> Exporting {len(selection)} to {path} …")
         try:
             if hasattr(cmds, 'usdExport'):
-                cmds.usdExport(file=path, selection=sel)
+                cmds.usdExport(file=path, selection=selection)
             else:
                 cmds.file(path, exportSelected=True, type='USD Export')
-            self.log_output.appendPlainText(f" Export complete: {path}")
+            self.log_output.appendPlainText(f"✅ Export complete: {path}")
             if Usd:
-                st = Usd.Stage.Open(path)
-                cnt = sum(1 for _ in st.Traverse())
-                self.log_output.appendPlainText(f">>> USD stage has {cnt} prims.")
+                stage = Usd.Stage.Open(path)
+                count = sum(1 for _ in stage.Traverse())
+                self.log_output.appendPlainText(f">>> USD stage has {count} prims.")
         except Exception as e:
-            self.log_output.appendPlainText(f" Export failed: {e}")
+            self.log_output.appendPlainText(f"❌ Export failed: {e}")
 
     def populate_usd_tree(self, usd_path):
         if not Usd:
@@ -182,27 +204,26 @@ class PipelineToolUI(QtWidgets.QDialog):
         if not stage:
             return
 
-        # Layers
-        for lyr in stage.GetLayerStack():
-            item = QtWidgets.QTreeWidgetItem([lyr.identifier, "Layer", ""])
+        for layer in stage.GetLayerStack():
+            item = QtWidgets.QTreeWidgetItem([layer.identifier, "Layer", ""])
             self.usd_tree.addTopLevelItem(item)
 
-        # Prims & VariantSets
         for prim in stage.Traverse():
-            vs = prim.GetVariantSets(); names = vs.GetNames()
+            vs = prim.GetVariantSets()
+            names = vs.GetNames()
             if names:
-                pi = QtWidgets.QTreeWidgetItem([prim.GetPath().pathString, "Prim", ""])
-                self.usd_tree.addTopLevelItem(pi)
-                for sn in names:
-                    vset = vs.GetVariantSet(sn)
-                    sel  = vset.GetVariantSelection()
-                    si   = QtWidgets.QTreeWidgetItem([sn, "VariantSet", sel])
-                    pi.addChild(si)
-                    for v in vset.GetVariantNames():
-                        leaf = QtWidgets.QTreeWidgetItem([v, "Variant", ""])
-                        if v == sel:
+                prim_item = QtWidgets.QTreeWidgetItem([prim.GetPath().pathString, "Prim", ""])
+                self.usd_tree.addTopLevelItem(prim_item)
+                for set_name in names:
+                    vset = vs.GetVariantSet(set_name)
+                    sel = vset.GetVariantSelection()
+                    set_item = QtWidgets.QTreeWidgetItem([set_name, "VariantSet", sel])
+                    prim_item.addChild(set_item)
+                    for variant in vset.GetVariantNames():
+                        leaf = QtWidgets.QTreeWidgetItem([variant, "Variant", ""])
+                        if variant == sel:
                             leaf.setSelected(True)
-                        si.addChild(leaf)
+                        set_item.addChild(leaf)
 
         self.usd_group.setChecked(True)
         self.usd_tree.expandAll()
@@ -210,60 +231,60 @@ class PipelineToolUI(QtWidgets.QDialog):
     def on_variant_activate(self, item, _):
         if item.text(1) != "Variant":
             return
-        set_item  = item.parent()
+        set_item = item.parent()
         prim_item = set_item.parent()
         prim_path = prim_item.text(0)
-        set_name  = set_item.text(0)
-        variant   = item.text(0)
+        set_name = set_item.text(0)
+        variant = item.text(0)
 
         stage = Usd.Stage.Open(self.current_usd)
-        prim  = stage.GetPrimAtPath(prim_path)
+        prim = stage.GetPrimAtPath(prim_path)
         prim.GetVariantSets().GetVariantSet(set_name).SetVariantSelection(variant)
         stage.GetRootLayer().Save()
-        for rn in cmds.ls(type='reference'):
-            cmds.file(rn, loadReference=True)
+
+        for ref in cmds.ls(type='reference'):
+            cmds.file(ref, loadReference=True)
 
     def on_run(self):
-        """Complete Import & Cleanup Process"""
+        """Run the full import & cleanup pipeline."""
         self.run_btn.setEnabled(False)
         self.log_output.clear()
-        # Redirect stdout to UI
+
         import sys
         class Stream:
-            def write(_, msg):
+            def write(inner, msg):
                 if msg.strip():
                     self.log_output.appendPlainText(msg)
-            def flush(_): pass
+            def flush(inner): pass
+
+        old_stdout = sys.stdout
         sys.stdout = Stream()
 
-        # Empty the scene
         cmds.file(new=True, force=True)
-        # Synchronization Options
-        import_cleanup_prototype.USD_IMPORT_AS_REF   = self.radio_ref.isChecked()
+
+        import_cleanup_prototype.USD_IMPORT_AS_REF = self.radio_ref.isChecked()
         import_cleanup_prototype.USD_IMPORT_AS_NODES = self.radio_nodes.isChecked()
-        import_cleanup_prototype.pipeline_rules['naming']['prefix']      = (
-            import_cleanup_prototype.pipeline_rules['naming']['prefix'] 
-            if self.naming_cb.isChecked() else ""
+        import_cleanup_prototype.pipeline_rules['naming']['prefix'] = (
+            import_cleanup_prototype.pipeline_rules['naming']['prefix'] if self.naming_cb.isChecked() else ""
         )
         import_cleanup_prototype.pipeline_rules['pathRepair']['autoFix'] = self.path_cb.isChecked()
         import_cleanup_prototype.pipeline_rules['cleanup']['namespaceCleanup'] = self.ns_cb.isChecked()
 
-        # Perform batch import and cleanup
         import_cleanup_prototype.batch_import_and_cleanup(self.dir_line.text() or None)
 
-        # Show USD tree if referencing schema
         if self.radio_ref.isChecked() and Usd:
             refs = cmds.file(query=True, reference=True) or []
-            usd_refs = [f for f in refs if f.lower().endswith(('.usd','.usda'))]
+            usd_refs = [f for f in refs if f.lower().endswith(('.usd', '.usda'))]
             if usd_refs:
                 self.current_usd = usd_refs[0]
                 self.populate_usd_tree(self.current_usd)
 
-        # recover stdout
-        sys.stdout = sys.__stdout__
+        sys.stdout = old_stdout
         self.run_btn.setEnabled(True)
 
+
 def show_pipeline_ui():
+    """Instantiate and show the pipeline tool UI."""
     global _pipeline_tool
     try:
         _pipeline_tool.close()

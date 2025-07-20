@@ -2,7 +2,6 @@ import os
 import re
 import json
 
-# Try importing Maya cmds; fall back to dummy for tests
 try:
     import maya.cmds as cmds
 except ImportError:
@@ -138,7 +137,7 @@ def batch_import_and_cleanup(folder_path=None):
     if not os.path.isdir(folder):
         raise FileNotFoundError(f"Import folder not found: {folder}")
 
-    # Ensure USD plugin if needed
+    #  USD plugin 
     if (USD_IMPORT_AS_REF or USD_IMPORT_AS_NODES) \
        and not cmds.pluginInfo('mayaUsdPlugin', query=True, loaded=True):
         try:
