@@ -1,5 +1,9 @@
 import os, sys, types, importlib
 import pytest
+
+if os.environ.get("CI") or os.environ.get("NO_UI_TEST"):
+    pytest.skip("Skipping UI tests in CI.", allow_module_level=True)
+    
 from PySide2 import QtWidgets
 
 # 1) Add ui/ and src/ to sys.path

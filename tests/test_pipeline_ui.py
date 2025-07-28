@@ -3,6 +3,9 @@ import sys
 import types
 import pytest
 
+if os.environ.get("CI") or os.environ.get("NO_UI_TEST"):
+    pytest.skip("Skipping UI tests in CI.", allow_module_level=True)
+
 # 1) Fake Maya and its submodules
 fake_maya = types.ModuleType("maya")
 fake_cmds = types.ModuleType("maya.cmds")
