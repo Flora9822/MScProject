@@ -141,5 +141,4 @@ print("Created test USD with variants at:", usd_path)
 This project is licensed under the **MIT License**.
 © 2025 Flora / MScProject
 
-```
 

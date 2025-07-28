@@ -1,0 +1,25 @@
+#usda 1.0
+
+def Xform "Asset" (
+    variants = {
+        string LOD = "low"
+    }
+    prepend variantSets = "LOD"
+)
+{
+    variantSet "LOD" = {
+        "high" {
+            def Sphere "high_Sphere"
+            {
+            }
+
+        }
+        "low" {
+            def Cube "low_Cube"
+            {
+            }
+
+        }
+    }
+}
+
