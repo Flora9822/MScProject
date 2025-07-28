@@ -1,0 +1,27 @@
+version: "3.8"
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: maya-pipeline-tool:latest
+    container_name: maya-pipeline-tool
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./:/app
+    working_dir: /app
+    command: pytest --maxfail=1 --disable-warnings -q --cov=src
+
+  docs:
+    image: python:3.9-slim
+    container_name: docs-server
+    working_dir: /app/docs
+    volumes:
+      - ./:/app
+    command: >
+      sh -c "pip install mkdocs mkdocs-material &&
+             mkdocs serve --dev-addr=0.0.0.0:8000"
+    ports:
+      - "8000:8000"
