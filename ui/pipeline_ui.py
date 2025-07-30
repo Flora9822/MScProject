@@ -27,12 +27,34 @@ class PipelineToolUI(QtWidgets.QDialog):
     def _build_ui(self):
         layout = QtWidgets.QVBoxLayout(self)
 
+        # Top buttons layout: Load Rules  + Help 
+        top_btn_layout = QtWidgets.QHBoxLayout()
+        
         self.load_rules_btn = QtWidgets.QPushButton("Load Rules…")
+        self.load_rules_btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         self.load_rules_btn.clicked.connect(self._on_load_rules)
-        layout.addWidget(self.load_rules_btn)
+        top_btn_layout.addWidget(self.load_rules_btn)
+
+        self.help_btn = QtWidgets.QPushButton("?")
+        self.help_btn.setFixedSize(30, 30)
+        self.help_btn.setStyleSheet(
+            "QPushButton {"
+            "border-radius: 15px;"
+            "background-color: #007BFF;"
+            "color: white;"
+            "font-weight: bold;"
+            "font-size: 16px;"
+            "}"
+            "QPushButton:hover { background-color: #0056b3; }"
+        )
+        self.help_btn.clicked.connect(self._on_help_clicked)
+        top_btn_layout.addWidget(self.help_btn)
+
+        layout.addLayout(top_btn_layout)
 
         h = QtWidgets.QHBoxLayout()
         self.dir_line = QtWidgets.QLineEdit()
+        self.dir_line.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         btn = QtWidgets.QPushButton("Browse…")
         btn.clicked.connect(self._on_choose_folder)
         h.addWidget(self.dir_line)
@@ -173,7 +195,6 @@ class PipelineToolUI(QtWidgets.QDialog):
             self.log_output.appendPlainText(f" Export failed: {e}")
 
     def _create_usd_proxy(self, usd_path):
-        # Create a MayaUSD proxy for previewing a USD file
         proxy_name = os.path.basename(usd_path).replace('.', '_') + "_Proxy"
         if cmds.objExists(proxy_name):
             cmds.delete(proxy_name)
@@ -182,7 +203,6 @@ class PipelineToolUI(QtWidgets.QDialog):
         cmds.select(proxy, replace=True)
 
     def populate_usd_tree(self, usd_path):
-        # Display the USD file's layers and variant sets in the UI
         if not Usd:
             return
         self.usd_tree.clear()
@@ -215,7 +235,6 @@ class PipelineToolUI(QtWidgets.QDialog):
         self.usd_tree.expandAll()
 
     def _on_variant_activate(self, item, _):
-        # Double-click variant leaf to change the selection in USD file
         if item.text(1) != "Variant":
             return
         set_item  = item.parent()
@@ -228,12 +247,10 @@ class PipelineToolUI(QtWidgets.QDialog):
         prim  = stage.GetPrimAtPath(prim_path)
         prim.GetVariantSets().GetVariantSet(set_name).SetVariantSelection(variant)
         stage.GetRootLayer().Save()
-        # Reload references so USD change propagates in Maya
         for rn in cmds.ls(type='reference'):
             cmds.file(rn, loadReference=True)
 
     def _on_run(self):
-        # Main run: import all assets, cleanup, and optionally show USD tree
         self.run_btn.setEnabled(False)
         self.log_output.clear()
 
@@ -259,7 +276,6 @@ class PipelineToolUI(QtWidgets.QDialog):
 
         import_cleanup_prototype.batch_import_and_cleanup(self.dir_line.text().strip() or None)
 
-        # Only try to display USD tree if reference import mode is active
         if self.radio_ref.isChecked() and Usd:
             refs = cmds.file(query=True, reference=True) or []
             usd_refs = [f for f in refs if f.lower().endswith(('.usd', '.usda'))]
@@ -279,6 +295,21 @@ class PipelineToolUI(QtWidgets.QDialog):
 
         sys.stdout = orig_stdout
         self.run_btn.setEnabled(True)
+
+    def _on_help_clicked(self):
+        QtWidgets.QMessageBox.information(
+            self, "User Guide",
+            "Asset Import & Prep Tool\n\n"
+            "1. Load your pipeline rules JSON file (optional).\n"
+            "2. Choose an asset folder.\n"
+            "3. Use 'Preview Renaming' to check names before importing.\n"
+            "4. Enable/disable naming, path repair, and namespace cleanup.\n"
+            "5. Select USD import mode.\n"
+            "6. Click 'Import & Clean' to process assets.\n"
+            "7. Use 'Batch Path Repair' to fix missing paths anytime.\n"
+            "8. Export selection to USD as needed.\n\n"
+            "For more info, see the project 'README' documentation."
+        )
 
 def show_pipeline_ui():
     global _pipeline_tool
