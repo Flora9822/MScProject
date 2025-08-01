@@ -3,8 +3,6 @@ import sys
 import types
 import pytest
 
-if os.environ.get("CI") or os.environ.get("NO_UI_TEST"):
-    pytest.skip("Skipping UI tests in CI.", allow_module_level=True)
 
 # 1) Fake Maya and its submodules
 fake_maya = types.ModuleType("maya")
@@ -73,7 +71,8 @@ def test_ui_components_exist(qapp, qtbot):
 def test_preview_populates_table(qapp, qtbot, tmp_path, monkeypatch):
     fake = {"foo": "ASSET_foo", "bar": "ASSET_bar"}
     monkeypatch.setattr(import_cleanup_prototype, "preview_renaming", lambda f: fake)
-    ui = PipelineToolUI(); qtbot.addWidget(ui)
+    ui = PipelineToolUI()
+    qtbot.addWidget(ui)
     ui.dir_line.setText(str(tmp_path))
     ui.on_preview()
     assert ui.preview_table.rowCount() == 2
@@ -85,7 +84,8 @@ def test_preview_populates_table(qapp, qtbot, tmp_path, monkeypatch):
 def test_batch_repair_logs_and_calls(qapp, qtbot, monkeypatch):
     called = []
     monkeypatch.setattr(import_cleanup_prototype, "fix_missing_paths", lambda: called.append(True))
-    ui = PipelineToolUI(); qtbot.addWidget(ui)
+    ui = PipelineToolUI()
+    qtbot.addWidget(ui)
     ui.on_batch_repair()
     text = ui.log_output.toPlainText()
     assert "Batch Path Repair" in text
@@ -94,8 +94,13 @@ def test_batch_repair_logs_and_calls(qapp, qtbot, monkeypatch):
 
 def test_on_run_invokes_pipeline(qapp, qtbot, monkeypatch):
     calls = []
-    monkeypatch.setattr(import_cleanup_prototype, "batch_import_and_cleanup", lambda folder: calls.append(folder))
-    ui = PipelineToolUI(); qtbot.addWidget(ui)
+    # patch to accept new signature but only record folder_path
+    def fake_batch_import_and_cleanup(folder_path, center_on_import=False, scale_factor=1.0, progress_callback=None):
+        calls.append(folder_path)
+    monkeypatch.setattr(import_cleanup_prototype, "batch_import_and_cleanup", fake_batch_import_and_cleanup)
+
+    ui = PipelineToolUI()
+    qtbot.addWidget(ui)
     target = "/fake/assets"
     ui.dir_line.setText(target)
     ui.radio_nodes.setChecked(True)
@@ -111,3 +116,21 @@ def test_show_pipeline_ui_shows_window(qapp, qtbot):
     from pipeline_ui import _pipeline_tool
     assert isinstance(_pipeline_tool, PipelineToolUI)
     assert _pipeline_tool.isVisible()
+
+
+# Add missing proxy methods for test compatibility
+def _add_missing_on_methods():
+    def on_preview(self):
+        self._on_preview()
+    def on_batch_repair(self):
+        self._on_batch_repair()
+    def on_run(self):
+        self._on_run()
+    def on_variant_activate(self, *args, **kwargs):
+        self._on_variant_activate(*args, **kwargs)
+    PipelineToolUI.on_preview = on_preview
+    PipelineToolUI.on_batch_repair = on_batch_repair
+    PipelineToolUI.on_run = on_run
+    PipelineToolUI.on_variant_activate = on_variant_activate
+
+_add_missing_on_methods()

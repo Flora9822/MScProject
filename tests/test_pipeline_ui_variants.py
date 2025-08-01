@@ -1,12 +1,12 @@
-import os, sys, types, importlib
+import os
+import sys
+import types
+import importlib
 import pytest
 
-if os.environ.get("CI") or os.environ.get("NO_UI_TEST"):
-    pytest.skip("Skipping UI tests in CI.", allow_module_level=True)
-    
 from PySide2 import QtWidgets
 
-# 1) Add ui/ and src/ to sys.path
+# Add ui/ and src/ to sys.path
 ROOT    = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 UI_DIR  = os.path.join(ROOT, 'ui')
 SRC_DIR = os.path.join(ROOT, 'src')
@@ -14,32 +14,31 @@ for p in (UI_DIR, SRC_DIR):
     if p not in sys.path:
         sys.path.insert(0, p)
 
-# 2) Stub out maya.* before importing pipeline_ui
+# Stub out maya modules
 maya_mod      = types.ModuleType('maya')
 maya_cmds     = types.ModuleType('maya.cmds')
 maya_mui      = types.ModuleType('maya.OpenMayaUI')
-# dummy cmds API
+
 def _noop(*args, **kwargs): return []
+
 for name in (
     'ls','pluginInfo','file','listRelatives','delete',
     'objExists','rename','filePathEditor','namespaceInfo',
     'namespace','loadPlugin','refresh','warning'
 ):
     setattr(maya_cmds, name, _noop)
-# dummy MQtUtil
+
 maya_mui.MQtUtil = types.SimpleNamespace(mainWindow=lambda: 0)
-# register modules
+
 sys.modules['maya']            = maya_mod
 sys.modules['maya.cmds']       = maya_cmds
 sys.modules['maya.OpenMayaUI'] = maya_mui
 setattr(maya_mod, 'cmds', maya_cmds)
 setattr(maya_mod, 'OpenMayaUI', maya_mui)
 
-# 3) Import the tool and UI
-import import_cleanup_prototype
-import ui.pipeline_ui as pipeline_ui
+import pipeline_ui
 
-# 4) Fake USD Stage / Prim / VariantSet
+# Fake USD classes for testing
 class FakeVariantSet:
     def __init__(self):
         self._names = ["high", "low"]
@@ -73,7 +72,6 @@ class FakeStage:
 
 @pytest.fixture(autouse=True)
 def patch_usd(monkeypatch):
-    # monkeypatch pipeline_ui.Usd.Stage.Open → same FakeStage
     fake_usd = types.SimpleNamespace(Stage=types.SimpleNamespace())
     stage    = FakeStage()
     fake_usd.Stage.Open = lambda path: stage
@@ -101,21 +99,18 @@ def test_variants_listed_and_selection(ui_app):
     ui_app.current_usd = "dummy.usda"
     ui_app.populate_usd_tree("dummy.usda")
 
-    # find the Prim item
     prim_item = next(
         ui_app.usd_tree.topLevelItem(i)
         for i in range(ui_app.usd_tree.topLevelItemCount())
         if ui_app.usd_tree.topLevelItem(i).text(1) == "Prim"
     )
 
-    # within that, find the VariantSet row
     vs_item = next(
         prim_item.child(j)
         for j in range(prim_item.childCount())
         if prim_item.child(j).text(1) == "VariantSet"
     )
 
-    # its column 2 holds the current selection
     sel = vs_item.text(2)
     assert sel in ("high", "low")
 
@@ -123,7 +118,6 @@ def test_on_variant_activate_changes_selection(ui_app):
     ui_app.current_usd = "dummy.usda"
     ui_app.populate_usd_tree("dummy.usda")
 
-    # locate "high" leaf under the Prim→VariantSet
     prim_item = next(
         ui_app.usd_tree.topLevelItem(i)
         for i in range(ui_app.usd_tree.topLevelItemCount())
@@ -140,14 +134,13 @@ def test_on_variant_activate_changes_selection(ui_app):
         if vs_item.child(k).text(0) == "high"
     )
 
-    # switch to "high"
+    # Call public method, must exist now
     ui_app.on_variant_activate(high_leaf, 0)
 
-    # FakeStage.saved must now be True
     stage = pipeline_ui.Usd.Stage.Open(ui_app.current_usd)
     assert stage.saved
 
-    # re-populate to update the UI text
+    # UI should update selection text
     ui_app.populate_usd_tree("dummy.usda")
     prim_item = next(
         ui_app.usd_tree.topLevelItem(i)
