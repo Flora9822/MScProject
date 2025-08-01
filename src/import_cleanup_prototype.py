@@ -46,7 +46,6 @@ def _collect_asset_files(folder_path):
     if not os.path.isdir(folder_path):
         raise FileNotFoundError(f"Asset folder not found: {folder_path}")
 
-    # Supported extensions (removed .gltf and .glb)
     exts = ('.fbx', '.abc', '.ma', '.mb', '.usd', '.usda', '.obj')
     files = []
     names = sorted(os.listdir(folder_path))
