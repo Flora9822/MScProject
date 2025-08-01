@@ -3,10 +3,11 @@ import json
 import re
 import time
 
-# Try importing Maya; use a dummy class for unit testing outside Maya
 try:
     import maya.cmds as cmds
+    import maya.utils
 except ImportError:
+    # Dummy cmds for testing outside Maya environment
     class DummyCmds:
         def ls(self, **kwargs): return []
         def pluginInfo(self, *args, **kwargs): return True
@@ -23,8 +24,11 @@ except ImportError:
         def refresh(self): pass
         def objectType(self, name): return "transform"
     cmds = DummyCmds()
+    maya = None
+else:
+    import maya.utils
 
-USD_IMPORT_AS_REF   = False
+USD_IMPORT_AS_REF = False
 USD_IMPORT_AS_NODES = True
 
 # Load pipeline rules from JSON config
@@ -33,32 +37,25 @@ with open(_rules_path, 'r') as f:
     pipeline_rules = json.load(f)
 
 def reload_rules(rules_file_path):
-    """Reload the pipeline rules from a given config file."""
     global pipeline_rules
     with open(rules_file_path, 'r') as f:
         pipeline_rules = json.load(f)
     print(f"Reloaded pipeline_rules from: {rules_file_path}")
 
 def _collect_asset_files(folder_path):
-    """
-    Collect all asset file paths with supported extensions.
-    For Maya GUI: import all files (even duplicate base names).
-    For pytest: deduplicate by base name, keep the highest priority.
-    """
     if not os.path.isdir(folder_path):
         raise FileNotFoundError(f"Asset folder not found: {folder_path}")
 
-    exts = ('.fbx', '.abc', '.ma', '.mb', '.usd', '.usda', '.obj', '.gltf', '.glb')
+    # Supported extensions (removed .gltf and .glb)
+    exts = ('.fbx', '.abc', '.ma', '.mb', '.usd', '.usda', '.obj')
     files = []
     names = sorted(os.listdir(folder_path))
 
-    # Detect if running under pytest (for test mode deduplication)
     import sys
     is_pytest = 'pytest' in sys.modules or any('pytest' in a for a in sys.argv)
 
     if is_pytest:
-        # Only keep the highest-priority file for each base name
-        priority = ['.ma', '.mb', '.usd', '.usda', '.obj', '.fbx', '.abc', '.gltf', '.glb']
+        priority = ['.ma', '.mb', '.usd', '.usda', '.obj', '.fbx', '.abc']
         candidates = {}
         for name in names:
             ext = os.path.splitext(name)[1].lower()
@@ -69,14 +66,12 @@ def _collect_asset_files(folder_path):
                 candidates[base] = name
         return [os.path.join(folder_path, fname) for fname in candidates.values()]
     else:
-        # In normal usage, import all supported files
         for name in names:
             if name.lower().endswith(exts):
                 files.append(os.path.join(folder_path, name))
         return files
 
 def get_unique_asset_name(base_name, prefix="ASSET_"):
-    """Return a unique asset name (e.g. ASSET_cube, ASSET_cube_001, etc)."""
     candidate = f"{prefix}{base_name}"
     if not cmds.objExists(candidate):
         return candidate
@@ -88,10 +83,6 @@ def get_unique_asset_name(base_name, prefix="ASSET_"):
         i += 1
 
 def preview_renaming(folder_path=None):
-    """
-    Simulate the final name each asset will be assigned, for preview in UI.
-    This does not actually modify the Maya scene.
-    """
     folder = folder_path or os.path.join(os.path.dirname(__file__), '..', 'test_assets')
     folder = os.path.abspath(folder)
     if not os.path.isdir(folder):
@@ -102,7 +93,6 @@ def preview_renaming(folder_path=None):
     sanitize_pat = re.compile(pr['naming']['sanitizePattern'])
     files = _collect_asset_files(folder)
 
-    # Simulate scene node names to predict new names
     virtual_scene = set(cmds.ls(type='transform'))
     mapping = {}
     for fp in files:
@@ -123,9 +113,6 @@ def preview_renaming(folder_path=None):
     return mapping
 
 def fix_missing_paths():
-    """
-    Try to fix missing file paths in the scene using filePathEditor.
-    """
     try:
         info = cmds.filePathEditor(query=True, listFiles="", withAttribute=True, status=True) or []
         missing = [info[i] for i in range(2, len(info), 3) if info[i] == 0]
@@ -138,10 +125,7 @@ def fix_missing_paths():
     except Exception as e:
         print(f"Path repair failed: {e}")
 
-def batch_import_and_cleanup(folder_path=None):
-    """
-    Main entry point: batch-import assets, perform cleanup, rename, path repair, and namespace merging.
-    """
+def batch_import_and_cleanup(folder_path=None, center_on_import=False, scale_factor=1.0, progress_callback=None):
     pr = pipeline_rules
     prefix = pr['naming']['prefix']
     pat = re.compile(pr['naming']['sanitizePattern'])
@@ -159,15 +143,15 @@ def batch_import_and_cleanup(folder_path=None):
         raise FileNotFoundError(f"Import folder not found: {folder}")
 
     files = _collect_asset_files(folder)
-
+    total_files = len(files)
     rename_msgs = []
-    for fp in files:
+
+    for i, fp in enumerate(files):
         base = os.path.splitext(os.path.basename(fp))[0]
         safe_base = pat.sub('_', base)
         ext = os.path.splitext(fp)[1].lower()
         import_kwargs = dict(ignoreVersion=True, returnNewNodes=True)
 
-        # File import: choose Maya type and print concise log
         if ext in ('.usd', '.usda'):
             if USD_IMPORT_AS_REF:
                 import_kwargs.update(reference=True)
@@ -187,9 +171,6 @@ def batch_import_and_cleanup(folder_path=None):
         elif ext == '.mb':
             import_kwargs.update(type='mayaBinary', i=True)
             print(f"Imported MB: {base}")
-        elif ext in ('.gltf', '.glb'):
-            import_kwargs.update(i=True)
-            print(f"Imported GLTF/GLB: {base}")
         else:
             import_kwargs.update(i=True)
             print(f"Imported: {base}")
@@ -205,7 +186,28 @@ def batch_import_and_cleanup(folder_path=None):
         all_transforms = [n for n in new_nodes if cmds.objectType(n) == "transform"]
         root_nodes = [n for n in all_transforms if not cmds.listRelatives(n, parent=True)]
 
-        # Rename imported root nodes (if enabled in config)
+        # Center imported root nodes if requested
+        if center_on_import:
+            for root in root_nodes:
+                try:
+                    cmds.xform(root, worldSpace=True, translation=(0, 0, 0))
+                except Exception as e:
+                    print(f"Failed to center {root}: {e}")
+
+        # Scale imported root nodes if scale_factor != 1.0
+        if scale_factor != 1.0:
+            for root in root_nodes:
+                try:
+                    sx = cmds.getAttr(f"{root}.scaleX")
+                    sy = cmds.getAttr(f"{root}.scaleY")
+                    sz = cmds.getAttr(f"{root}.scaleZ")
+                    cmds.setAttr(f"{root}.scaleX", sx * scale_factor)
+                    cmds.setAttr(f"{root}.scaleY", sy * scale_factor)
+                    cmds.setAttr(f"{root}.scaleZ", sz * scale_factor)
+                except Exception as e:
+                    print(f"Failed to scale {root}: {e}")
+
+        # Rename root nodes if naming enabled
         if use_naming and root_nodes:
             for node in root_nodes:
                 new_name = get_unique_asset_name(safe_base, prefix)
@@ -216,7 +218,13 @@ def batch_import_and_cleanup(folder_path=None):
                 except Exception as e:
                     rename_msgs.append(f"Failed to rename {old} → {e}")
 
-    # Optionally delete empty transform groups
+        # Progress callback wrapped in deferred to avoid blocking UI
+        if progress_callback and maya:
+            progress_pct = int((i + 1) / total_files * 100)
+            def update_progress():
+                progress_callback(progress_pct)
+            maya.utils.executeDeferred(update_progress)
+
     if do_delete:
         for node in sorted(cmds.ls(type='transform')):
             children = cmds.listRelatives(node, children=True) or []
@@ -228,17 +236,14 @@ def batch_import_and_cleanup(folder_path=None):
                 except:
                     pass
 
-    # Output renaming actions
     for msg in rename_msgs:
         print(msg)
 
-    # Repair missing texture paths if configured
     if do_pr:
         fix_missing_paths()
     else:
         print("No missing paths detected.")
 
-    # Merge/clean up custom namespaces if needed
     if do_ns:
         for ns in cmds.namespaceInfo(listOnlyNamespaces=True) or []:
             if ns in ('UI', 'shared'):

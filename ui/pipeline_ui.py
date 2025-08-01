@@ -21,46 +21,51 @@ class PipelineToolUI(QtWidgets.QDialog):
         super(PipelineToolUI, self).__init__(parent=maya_main_window())
         self.setWindowTitle("Asset Import & Prep Tool")
         self.setMinimumWidth(480)
+        self.original_scales = {}  # Cache original scales to avoid cumulative scaling
         self._build_ui()
         self._update_ui_from_rules()
+
+        try:
+            self.script_job_number = cmds.scriptJob(event=["SelectionChanged", self._on_selection_changed], protected=True)
+        except Exception:
+            self.script_job_number = None
+
+    def closeEvent(self, event):
+        if self.script_job_number and cmds.scriptJob(exists=self.script_job_number):
+            cmds.scriptJob(kill=self.script_job_number, force=True)
+        super(PipelineToolUI, self).closeEvent(event)
 
     def _build_ui(self):
         layout = QtWidgets.QVBoxLayout(self)
 
-        # Top buttons layout: Load Rules  + Help 
-        top_btn_layout = QtWidgets.QHBoxLayout()
-        
+        # Load Rules and Help buttons
+        h_load_help = QtWidgets.QHBoxLayout()
         self.load_rules_btn = QtWidgets.QPushButton("Load Rules…")
-        self.load_rules_btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        self.load_rules_btn.setFixedWidth(370)
         self.load_rules_btn.clicked.connect(self._on_load_rules)
-        top_btn_layout.addWidget(self.load_rules_btn)
-
+        h_load_help.addWidget(self.load_rules_btn)
+        h_load_help.addStretch()
         self.help_btn = QtWidgets.QPushButton("?")
-        self.help_btn.setFixedSize(30, 30)
+        self.help_btn.setFixedSize(36, 36)
         self.help_btn.setStyleSheet(
-            "QPushButton {"
-            "border-radius: 15px;"
-            "background-color: #007BFF;"
-            "color: white;"
-            "font-weight: bold;"
-            "font-size: 16px;"
-            "}"
-            "QPushButton:hover { background-color: #0056b3; }"
+            "background-color: #007acc; color: white; border-radius: 18px; font-weight: bold; font-size: 20px;"
         )
-        self.help_btn.clicked.connect(self._on_help_clicked)
-        top_btn_layout.addWidget(self.help_btn)
+        self.help_btn.clicked.connect(self._on_help)
+        h_load_help.addWidget(self.help_btn)
+        h_load_help.addStretch()
+        layout.addLayout(h_load_help)
 
-        layout.addLayout(top_btn_layout)
-
+        # Directory selection
         h = QtWidgets.QHBoxLayout()
         self.dir_line = QtWidgets.QLineEdit()
-        self.dir_line.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        self.dir_line.setMinimumWidth(360)
         btn = QtWidgets.QPushButton("Browse…")
         btn.clicked.connect(self._on_choose_folder)
         h.addWidget(self.dir_line)
         h.addWidget(btn)
         layout.addLayout(h)
 
+        # Preview and Batch Repair buttons
         row = QtWidgets.QHBoxLayout()
         self.preview_btn = QtWidgets.QPushButton("Preview Renaming")
         self.preview_btn.clicked.connect(self._on_preview)
@@ -70,24 +75,50 @@ class PipelineToolUI(QtWidgets.QDialog):
         row.addWidget(self.batch_repair_btn)
         layout.addLayout(row)
 
+        # Preview table
         self.preview_table = QtWidgets.QTableWidget(0, 2)
         self.preview_table.setHorizontalHeaderLabels(["Original", "New Name"])
         self.preview_table.horizontalHeader().setSectionResizeMode(0, QtWidgets.QHeaderView.Stretch)
         self.preview_table.horizontalHeader().setSectionResizeMode(1, QtWidgets.QHeaderView.Stretch)
         layout.addWidget(self.preview_table)
 
-        self.naming_cb = QtWidgets.QCheckBox()
-        layout.addWidget(self.naming_cb)
+        # Naming checkbox + prefix input
+        h_naming = QtWidgets.QHBoxLayout()
+        self.naming_cb = QtWidgets.QCheckBox("Enable Naming")
+        self.naming_cb.stateChanged.connect(self._on_naming_enabled)
+        h_naming.addWidget(self.naming_cb)
+
+        self.naming_prefix_edit = QtWidgets.QLineEdit()
+        self.naming_prefix_edit.setFixedWidth(150)
+        h_naming.addWidget(self.naming_prefix_edit)
+        h_naming.addStretch()
+        layout.addLayout(h_naming)
+
+        # Path repair and namespace cleanup checkboxes
         self.path_cb = QtWidgets.QCheckBox("Enable Auto Path Repair")
         layout.addWidget(self.path_cb)
         self.ns_cb = QtWidgets.QCheckBox("Enable Namespace Cleanup")
         layout.addWidget(self.ns_cb)
 
+        # Center on import checkbox + scale slider
+        h_scale_center = QtWidgets.QHBoxLayout()
+        self.center_on_import_cb = QtWidgets.QCheckBox("Center on Import")
+        h_scale_center.addWidget(self.center_on_import_cb)
+        h_scale_center.addStretch()
+        h_scale_center.addWidget(QtWidgets.QLabel("Scale"))
+        self.scale_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.scale_slider.setRange(50, 150)
+        self.scale_slider.setValue(100)
+        self.scale_slider.setFixedWidth(120)
+        self.scale_slider.valueChanged.connect(self._on_scale_slider_changed)
+        h_scale_center.addWidget(self.scale_slider)
+        layout.addLayout(h_scale_center)
+
         # USD import mode selection
         box = QtWidgets.QGroupBox("USD Import Mode")
         hb = QtWidgets.QHBoxLayout(box)
         self.radio_nodes = QtWidgets.QRadioButton("Import as Nodes")
-        self.radio_ref   = QtWidgets.QRadioButton("Import as Reference")
+        self.radio_ref = QtWidgets.QRadioButton("Import as Reference")
         self.radio_nodes.setChecked(True)
         grp = QtWidgets.QButtonGroup(self)
         grp.addButton(self.radio_nodes)
@@ -107,39 +138,76 @@ class PipelineToolUI(QtWidgets.QDialog):
         vb.addWidget(self.usd_tree)
         layout.addWidget(self.usd_group)
 
+        # Export button
         self.export_btn = QtWidgets.QPushButton("Export Selection to USD")
         self.export_btn.clicked.connect(self._on_usd_export)
         layout.addWidget(self.export_btn)
 
+        # Run button
         self.run_btn = QtWidgets.QPushButton("Import & Clean")
         self.run_btn.clicked.connect(self._on_run)
         layout.addWidget(self.run_btn)
 
+        # Log output
         self.log_output = QtWidgets.QPlainTextEdit()
         self.log_output.setReadOnly(True)
         layout.addWidget(self.log_output)
 
+        # Progress bar at bottom
+        self.progress_bar = QtWidgets.QProgressBar()
+        self.progress_bar.setTextVisible(True)
+        self.progress_bar.setFixedHeight(12)
+        layout.addWidget(self.progress_bar)
+
     def _update_ui_from_rules(self):
         rules = import_cleanup_prototype.pipeline_rules
-        pfx   = rules['naming']['prefix']
-        self.naming_cb.setText(f"Enable Naming (prefix={pfx})")
+        pfx = rules['naming']['prefix']
         self.naming_cb.setChecked(bool(pfx))
+        self.naming_prefix_edit.setText(pfx)
+        self.naming_prefix_edit.setEnabled(self.naming_cb.isChecked())
         self.path_cb.setChecked(rules['pathRepair']['autoFix'])
         self.ns_cb.setChecked(rules['cleanup']['namespaceCleanup'])
 
-    # For testability and possible script access
-    def on_preview(self):
-        self._on_preview()
-    def on_batch_repair(self):
-        self._on_batch_repair()
-    def on_run(self):
-        self._on_run()
-    def on_variant_activate(self, *args, **kwargs):
-        self._on_variant_activate(*args, **kwargs)
+    def _on_naming_enabled(self, state):
+        enabled = state == QtCore.Qt.Checked
+        self.naming_prefix_edit.setEnabled(enabled)
+
+    def _on_scale_slider_changed(self, value):
+        scale_factor = value / 100.0
+        selected = cmds.ls(selection=True, long=True)
+        if not selected:
+            print("No object selected for scaling.")
+            return
+
+        for node in selected:
+            if node not in self.original_scales:
+                try:
+                    sx = cmds.getAttr(f"{node}.scaleX")
+                    sy = cmds.getAttr(f"{node}.scaleY")
+                    sz = cmds.getAttr(f"{node}.scaleZ")
+                    self.original_scales[node] = (sx, sy, sz)
+                except Exception as e:
+                    print(f"Failed to get original scale for {node}: {e}")
+                    continue
+
+            try:
+                ox, oy, oz = self.original_scales[node]
+                cmds.setAttr(f"{node}.scaleX", ox * scale_factor)
+                cmds.setAttr(f"{node}.scaleY", oy * scale_factor)
+                cmds.setAttr(f"{node}.scaleZ", oz * scale_factor)
+            except Exception as e:
+                print(f"Failed to scale {node}: {e}")
+
+    def _on_selection_changed(self):
+        self.scale_slider.blockSignals(True)
+        self.scale_slider.setValue(100)
+        self.scale_slider.blockSignals(False)
+        self.original_scales.clear()
 
     def _on_load_rules(self):
         path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Select Rules JSON", "", "JSON Files (*.json)")
-        if not path: return
+        if not path:
+            return
         try:
             import_cleanup_prototype.reload_rules(path)
         except Exception as e:
@@ -189,7 +257,7 @@ class PipelineToolUI(QtWidgets.QDialog):
             self.log_output.appendPlainText(f" Export complete: {path}")
             if Usd:
                 stage = Usd.Stage.Open(path)
-                cnt   = sum(1 for _ in stage.Traverse())
+                cnt = sum(1 for _ in stage.Traverse())
                 self.log_output.appendPlainText(f">>> USD stage has {cnt} prims.")
         except Exception as e:
             self.log_output.appendPlainText(f" Export failed: {e}")
@@ -222,8 +290,8 @@ class PipelineToolUI(QtWidgets.QDialog):
                 self.usd_tree.addTopLevelItem(pi)
                 for sn in names:
                     vset = vs.GetVariantSet(sn)
-                    sel  = vset.GetVariantSelection()
-                    si   = QtWidgets.QTreeWidgetItem([sn, "VariantSet", sel])
+                    sel = vset.GetVariantSelection()
+                    si = QtWidgets.QTreeWidgetItem([sn, "VariantSet", sel])
                     pi.addChild(si)
                     for v in vset.GetVariantNames():
                         leaf = QtWidgets.QTreeWidgetItem([v, "Variant", ""])
@@ -237,14 +305,14 @@ class PipelineToolUI(QtWidgets.QDialog):
     def _on_variant_activate(self, item, _):
         if item.text(1) != "Variant":
             return
-        set_item  = item.parent()
+        set_item = item.parent()
         prim_item = set_item.parent()
         prim_path = prim_item.text(0)
-        set_name  = set_item.text(0)
-        variant   = item.text(0)
+        set_name = set_item.text(0)
+        variant = item.text(0)
 
         stage = Usd.Stage.Open(self.current_usd)
-        prim  = stage.GetPrimAtPath(prim_path)
+        prim = stage.GetPrimAtPath(prim_path)
         prim.GetVariantSets().GetVariantSet(set_name).SetVariantSelection(variant)
         stage.GetRootLayer().Save()
         for rn in cmds.ls(type='reference'):
@@ -265,16 +333,22 @@ class PipelineToolUI(QtWidgets.QDialog):
 
         cmds.file(new=True, force=True)
 
-        import_cleanup_prototype.USD_IMPORT_AS_REF   = self.radio_ref.isChecked()
+        import_cleanup_prototype.USD_IMPORT_AS_REF = self.radio_ref.isChecked()
         import_cleanup_prototype.USD_IMPORT_AS_NODES = self.radio_nodes.isChecked()
-        import_cleanup_prototype.pipeline_rules['naming']['prefix']      = (
-            import_cleanup_prototype.pipeline_rules['naming']['prefix']
-            if self.naming_cb.isChecked() else ""
-        )
-        import_cleanup_prototype.pipeline_rules['pathRepair']['autoFix']  = self.path_cb.isChecked()
+
+        prefix = self.naming_prefix_edit.text() if self.naming_cb.isChecked() else ""
+        import_cleanup_prototype.pipeline_rules['naming']['prefix'] = prefix
+
+        import_cleanup_prototype.pipeline_rules['pathRepair']['autoFix'] = self.path_cb.isChecked()
         import_cleanup_prototype.pipeline_rules['cleanup']['namespaceCleanup'] = self.ns_cb.isChecked()
 
-        import_cleanup_prototype.batch_import_and_cleanup(self.dir_line.text().strip() or None)
+        # Pass center_on_import and scale value to the batch import function
+        import_cleanup_prototype.batch_import_and_cleanup(
+            self.dir_line.text().strip() or None,
+            center_on_import=self.center_on_import_cb.isChecked(),
+            scale_factor=self.scale_slider.value() / 100.0,
+            progress_callback=self._on_progress_update
+        )
 
         if self.radio_ref.isChecked() and Usd:
             refs = cmds.file(query=True, reference=True) or []
@@ -295,21 +369,27 @@ class PipelineToolUI(QtWidgets.QDialog):
 
         sys.stdout = orig_stdout
         self.run_btn.setEnabled(True)
+        self.progress_bar.setValue(0)
 
-    def _on_help_clicked(self):
-        QtWidgets.QMessageBox.information(
-            self, "User Guide",
-            "Asset Import & Prep Tool\n\n"
-            "1. Load your pipeline rules JSON file (optional).\n"
-            "2. Choose an asset folder.\n"
-            "3. Use 'Preview Renaming' to check names before importing.\n"
-            "4. Enable/disable naming, path repair, and namespace cleanup.\n"
-            "5. Select USD import mode.\n"
-            "6. Click 'Import & Clean' to process assets.\n"
-            "7. Use 'Batch Path Repair' to fix missing paths anytime.\n"
-            "8. Export selection to USD as needed.\n\n"
-            "For more info, see the project 'README' documentation."
-        )
+    def _on_progress_update(self, percent):
+        self.progress_bar.setValue(percent)
+
+    def _on_help(self):
+        QtWidgets.QMessageBox.information(self, "Help", "Asset Import & Prep Tool\n\n"
+            "1. Load Rules: Load a JSON file with naming and cleanup rules.\n"
+            "2. Select Asset Folder: Choose the folder containing your assets.\n"
+            "3. Preview Renaming: See proposed renaming before import.\n"
+            "4. Enable Naming: Toggle automatic naming with prefix.\n"
+            "5. Enter Prefix: Customize your naming prefix here.\n"
+            "6. Enable Path Repair: Auto fix missing texture/cache paths.\n"
+            "7. Enable Namespace Cleanup: Flatten namespaces.\n"
+            "8. Center on Import: Move imported assets to world origin (0,0,0).\n"
+            "9. Scale Assets: Adjust scale of imported assets (slider: 50% to 150%, default 100%).\n"
+            "10. USD Import Mode: Choose node or reference import for USD files.\n"
+            "11. Import & Clean: Run batch import and cleanup.\n"
+            "12. Export Selection to USD: Export current selection.\n"
+            "13. Batch Path Repair: Fix broken paths without re-importing.\n"
+            "\nFor detailed documentation, please see the project README.")
 
 def show_pipeline_ui():
     global _pipeline_tool
