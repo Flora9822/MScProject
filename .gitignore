@@ -12,3 +12,8 @@ __pycache__/
 # virtual environment
 venv/
 .venv/
+
+# Coverage reports
+.coverage
+coverage.xml
+htmlcov/

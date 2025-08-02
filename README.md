@@ -1,5 +1,6 @@
 
-[![codecov](https://codecov.io/gh/Flora9822/MScProject/branch/main/graph/badge.svg)](https://codecov.io/gh/Flora9822/MScProject)
+[![Coverage Status](https://img.shields.io/badge/coverage-83%25-green)]
+
 
 # Asset Import and Preparation Pipeline Tool for Maya
 
