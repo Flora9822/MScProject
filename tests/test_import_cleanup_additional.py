@@ -1,67 +1,99 @@
 import os
-import tempfile
+import json
 import pytest
 import import_cleanup_prototype as icp
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
-def test_reload_rules(tmp_path):
-    file = tmp_path / "rules.json"
-    file.write_text('{"naming": {"prefix": "T_", "sanitizePattern": "[^a-zA-Z0-9_]"}, "cleanup": {}, "pathRepair": {}}')
-    icp.reload_rules(str(file))
-    assert icp.pipeline_rules['naming']['prefix'] == "T_"
-
-def test_collect_asset_files_pytest_mode(monkeypatch, tmp_path):
-    filenames = ["foo.ma", "foo.mb", "foo.usda", "bar.fbx", "baz.txt"]
-    for f in filenames:
-        (tmp_path / f).write_text("test")
-    monkeypatch.setattr("sys.modules", {"pytest": True})
-    result = icp._collect_asset_files(str(tmp_path))
-    assert any(f.endswith(".ma") for f in result)
-    assert all(f.endswith(('.ma','.mb','.usd','.usda','.obj','.fbx','.abc')) for f in result)
-
-def test_get_unique_asset_name(monkeypatch):
-    monkeypatch.setattr(icp.cmds, "objExists", lambda name: name in ("ASSET_foo", "ASSET_foo_001", "ASSET_foo_002"))
-    name = icp.get_unique_asset_name("foo", prefix="ASSET_")
-    assert name == "ASSET_foo_003"
-
-def test_preview_renaming_exception():
+def test_reload_rules_file_not_found():
+    # Test reload_rules raises FileNotFoundError when file is missing
     with pytest.raises(FileNotFoundError):
-        icp.preview_renaming(folder_path="/nonexistent/path")
+        icp.reload_rules("/nonexistent/path.json")
 
-def test_fix_missing_paths_exception(monkeypatch):
-    def raise_exc(*a, **k): raise RuntimeError("fail")
+def test_reload_rules_invalid_json(tmp_path):
+    # Test reload_rules raises JSONDecodeError on invalid JSON
+    bad_file = tmp_path / "bad.json"
+    bad_file.write_text("{ invalid json }")
+    with pytest.raises(json.JSONDecodeError):
+        icp.reload_rules(str(bad_file))
+
+def test_collect_asset_files_no_valid_extensions(tmp_path):
+    # Test _collect_asset_files returns empty list if no matching extensions
+    d = tmp_path / "empty"
+    d.mkdir()
+    (d / "file.txt").write_text("test")
+    files = icp._collect_asset_files(str(d))
+    assert files == []
+
+def test_get_unique_asset_name_increment(monkeypatch):
+    # Test get_unique_asset_name increments suffix properly
+    called_names = []
+    def fake_objExists(name):
+        called_names.append(name)
+        return name in ("ASSET_test", "ASSET_test_001")
+    monkeypatch.setattr(icp.cmds, "objExists", fake_objExists)
+    name = icp.get_unique_asset_name("test", prefix="ASSET_")
+    assert name == "ASSET_test_002"
+    assert called_names[-1] == "ASSET_test_002"
+
+def test_preview_renaming_folder_not_exist():
+    # Test preview_renaming raises FileNotFoundError for invalid folder
+    with pytest.raises(FileNotFoundError):
+        icp.preview_renaming("/invalid/path")
+
+def test_fix_missing_paths_handles_exception(monkeypatch):
+    # Test fix_missing_paths catches exceptions gracefully
+    def raise_exc(*args, **kwargs):
+        raise RuntimeError("simulated failure")
     monkeypatch.setattr(icp.cmds, "filePathEditor", raise_exc)
-    icp.fix_missing_paths()  # catch and print error
+    icp.fix_missing_paths()  # Should not raise, just print error
 
-def test_batch_import_and_cleanup_edge_cases(monkeypatch, tmp_path):
-    # Test nonexistent folder raises error
-    with pytest.raises(FileNotFoundError):
-        icp.batch_import_and_cleanup("/nonexistent/path")
-
-    test_file = tmp_path / "test.ma"
-    test_file.write_text("")
-
-    monkeypatch.setattr(icp, "_collect_asset_files", lambda folder: [str(test_file)])
-
-    # Simulate file import exception
-    monkeypatch.setattr(icp.cmds, "file", lambda fp, **kwargs: (_ for _ in ()).throw(Exception("fail import")))
-    icp.batch_import_and_cleanup(str(tmp_path))
-
-    # Simulate rename failure
-    monkeypatch.setattr(icp.cmds, "file", lambda fp, **kwargs: ["node1"])
-    monkeypatch.setattr(icp.cmds, "objectType", lambda name: "transform")
-    monkeypatch.setattr(icp.cmds, "listRelatives", lambda node, **kwargs: [])
-    monkeypatch.setattr(icp.cmds, "rename", lambda old, new: (_ for _ in ()).throw(Exception("fail rename")))
+def test_batch_import_usd_skipped(monkeypatch, tmp_path):
+    # Test batch_import_and_cleanup skips USD files if flags set to False
+    d = tmp_path
+    (d / "file.usd").write_text("")
+    monkeypatch.setattr(icp.cmds, "file", lambda *a, **k: [])
+    monkeypatch.setattr(icp.cmds, "objectType", lambda n: "transform")
+    monkeypatch.setattr(icp.cmds, "listRelatives", lambda n, **k: [])
+    monkeypatch.setattr(icp.cmds, "rename", lambda old, new: new)
     monkeypatch.setattr(icp.cmds, "objExists", lambda name: False)
-    icp.batch_import_and_cleanup(str(tmp_path))
+    icp.USD_IMPORT_AS_REF = False
+    icp.USD_IMPORT_AS_NODES = False
+    icp.batch_import_and_cleanup(str(d))
 
-    # Simulate delete failure on empty groups
-    monkeypatch.setattr(icp.cmds, "ls", lambda **kwargs: ["empty_group"])
-    monkeypatch.setattr(icp.cmds, "listRelatives", lambda node, **kwargs: [])
-    monkeypatch.setattr(icp.cmds, "delete", lambda node: (_ for _ in ()).throw(Exception("fail delete")))
-    icp.batch_import_and_cleanup(str(tmp_path))
+def test_batch_import_center_and_scale_exceptions(monkeypatch, tmp_path):
+    # Test exceptions during center and scale operations are caught
+    d = tmp_path
+    (d / "file.ma").write_text("")
+    monkeypatch.setattr(icp.cmds, "file", lambda *a, **k: ["node"])
+    monkeypatch.setattr(icp.cmds, "objectType", lambda n: "transform")
+    monkeypatch.setattr(icp.cmds, "listRelatives", lambda n, **k: [])
+    monkeypatch.setattr(icp.cmds, "xform", lambda *a, **k: (_ for _ in ()).throw(Exception("xform failed")))
+    monkeypatch.setattr(icp.cmds, "getAttr", lambda attr: 1.0)
+    monkeypatch.setattr(icp.cmds, "setAttr", lambda *a, **k: (_ for _ in ()).throw(Exception("setAttr failed")))
+    monkeypatch.setattr(icp.cmds, "rename", lambda old, new: new)
+    monkeypatch.setattr(icp.cmds, "objExists", lambda name: False)
+    icp.batch_import_and_cleanup(str(d), center_on_import=True, scale_factor=2.0)
 
-    # Simulate namespace cleanup failure
-    monkeypatch.setattr(icp.cmds, "namespaceInfo", lambda **kwargs: ["bad_ns"])
-    monkeypatch.setattr(icp.cmds, "namespace", lambda **kwargs: (_ for _ in ()).throw(Exception("fail ns")))
-    icp.batch_import_and_cleanup(str(tmp_path))
+def test_batch_import_rename_exception(monkeypatch, tmp_path):
+    # Test batch_import_and_cleanup handles rename exceptions gracefully
+    d = tmp_path
+    (d / "file.ma").write_text("")
+    monkeypatch.setattr(icp.cmds, "file", lambda *a, **k: ["node"])
+    monkeypatch.setattr(icp.cmds, "objectType", lambda n: "transform")
+    monkeypatch.setattr(icp.cmds, "listRelatives", lambda n, **k: [])
+    monkeypatch.setattr(icp.cmds, "rename", lambda old, new: (_ for _ in ()).throw(Exception("rename failed")))
+    monkeypatch.setattr(icp.cmds, "objExists", lambda name: False)
+    icp.batch_import_and_cleanup(str(d))
+
+def test_batch_import_delete_empty_groups_exception(monkeypatch):
+    # Test delete empty group failure does not crash the import
+    monkeypatch.setattr(icp.cmds, "ls", lambda **k: ["emptyGroup"])
+    monkeypatch.setattr(icp.cmds, "listRelatives", lambda n, **k: [])
+    monkeypatch.setattr(icp.cmds, "delete", lambda n: (_ for _ in ()).throw(Exception("delete failed")))
+    icp.batch_import_and_cleanup()
+
+def test_batch_import_namespace_cleanup_exception(monkeypatch):
+    # Test namespace cleanup failure is handled gracefully
+    monkeypatch.setattr(icp.cmds, "namespaceInfo", lambda **k: ["badNamespace"])
+    monkeypatch.setattr(icp.cmds, "namespace", lambda **k: (_ for _ in ()).throw(Exception("namespace cleanup failed")))
+    icp.batch_import_and_cleanup()

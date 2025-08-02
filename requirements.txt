@@ -2,6 +2,5 @@ pytest>=7.0
 pytest-cov
 pytest-qt
 PySide2
-PyQt5
 shiboken2
 codecov

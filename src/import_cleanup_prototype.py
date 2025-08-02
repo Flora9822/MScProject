@@ -23,6 +23,10 @@ except ImportError:
         def loadPlugin(self, *args, **kwargs): return True
         def refresh(self): pass
         def objectType(self, name): return "transform"
+        def xform(self, *args, **kwargs):pass
+        def getAttr(self, attr):return 1.0
+        def setAttr(self, *args, **kwargs): pass
+
     cmds = DummyCmds()
     maya = None
 else:

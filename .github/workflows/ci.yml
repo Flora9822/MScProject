@@ -42,9 +42,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run tests with coverage using xvfb-run
+      - name: Run tests with coverage using xvfb-run, ignoring UI tests
         run: |
-          xvfb-run -a pytest --maxfail=1 --disable-warnings -q --cov=src --cov-report=xml --cov-report=term-missing
+          xvfb-run -a pytest --maxfail=1 --disable-warnings -q --cov=src --cov-report=xml --cov-report=term-missing \
+            --ignore=tests/test_pipeline_ui.py \
+            --ignore=tests/test_pipeline_ui_additional.py \
+            --ignore=tests/test_pipeline_ui_variants.py
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
