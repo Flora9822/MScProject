@@ -1,19 +1,27 @@
-# Python
+# Python bytecode and cache
 __pycache__/
 *.pyc
 
-# VSCode 
+# VSCode / PyCharm / IDE settings
 .vscode/
 *.idea/
 
-# Maya
+# Maya logs
 *.log
 
-# virtual environment
+# Virtual environments
 venv/
 .venv/
+venv39/
 
 # Coverage reports
 .coverage
 coverage.xml
 htmlcov/
+
+# Pytest cache
+.pytest_cache/
+.cache/
+
+# macOS system files
+.DS_Store

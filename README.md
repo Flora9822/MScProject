@@ -1,7 +1,6 @@
 
 [![Coverage Status](https://img.shields.io/badge/coverage-83%25-green)]
 
-
 # Asset Import and Preparation Pipeline Tool for Maya
 
 A streamlined pipeline tool designed for Autodesk Maya to batch import, clean up, and manage 3D assets efficiently. Supports USD workflows, customizable naming conventions, namespace cleanup, variant browsing, progress feedback, and collision-safe numbering.
@@ -38,87 +37,80 @@ A streamlined pipeline tool designed for Autodesk Maya to batch import, clean up
 
 ## Installation
 
-1. Clone or copy this repository into your Maya scripts directory, e.g.:
+1. Clone or copy this repository into your Maya scripts directory, for example:
 
 ```
 
 \~/Documents/MScProject/
-├── src/import\_cleanup\_prototype.py
-├── src/rules/pipeline\_rules.json
-└── ui/pipeline\_ui.py
+├── run_tool.py
+├── install_shelf_button.py
+├── src/import_cleanup_prototype.py
+├── src/rules/pipeline_rules.json
+└── ui/pipeline_ui.py
 
 ```
 
-2. Create a `test_assets/` folder alongside for test models:
+2. Create a folder for test models (optional):
 
 ```
 
-\~/Documents/MScProject/test\_assets/
+\~/Documents/MScProject/test_assets/
 
 ````
 
-3. Confirm `pipeline_rules.json` is present in `src/rules/`.
+3. Ensure `pipeline_rules.json` exists in `src/rules/`.
 
 ---
 
 ## Quick Start
 
-1. Launch Maya.
+### 🔹 Method 1: Shelf Button (Recommended)
 
-2. Open the Script Editor → Python tab.
+1. Open Maya and Script Editor → Python tab.
 
-3. Paste and run:
+2. Run:
 
 ```python
-import sys, importlib
-
-paths = [
-    "/home/you/Documents/MScProject/src",
-    "/home/you/Documents/MScProject/ui"
-]
-for p in paths:
-    if p not in sys.path:
-        sys.path.append(p)
-
-import import_cleanup_prototype, pipeline_ui
-importlib.reload(import_cleanup_prototype)
-importlib.reload(pipeline_ui)
-
-pipeline_ui.show_pipeline_ui()
+exec(open("install_shelf_button.py").read())
 ````
 
-4. The **Asset Import & Prep Tool** UI will appear.
+3. A shelf button labeled `PipelineTool` will be created in the "Custom" shelf.
+
+4. Click the button anytime to launch the UI.
+
+> 💡 Tip: Make sure Maya’s working directory is set to your project root (`MScProject/`), or provide full path if needed.
+
+---
+
+### 🔹 Method 2: Manual Script Execution
+
+If you don’t want to use the shelf button, run:
+
+```python
+exec(open("run_tool.py").read())
+```
+
+This will launch the Asset Import & Prep Tool UI directly.
 
 ---
 
 ## Typical Workflow
 
 1. Optionally reload or modify pipeline rules (`pipeline_rules.json`).
-
 2. Click **Browse...** and select your asset folder.
-
 3. Preview sanitized and collision-safe asset names.
-
 4. Enable/disable options:
 
    * Naming prefix toggle and input
    * Path repair toggle
    * Namespace cleanup toggle
-
 5. Use **Batch Path Repair** to fix broken paths independently.
-
 6. Select USD import mode (*Reference* or *Nodes*).
-
 7. Adjust scale slider for interactive scaling.
-
 8. Choose **Center on Import** to move assets to world origin.
-
 9. Click **Import & Clean** to process assets, with live progress.
-
 10. Browse USD layers and variants if using referenced USD.
-
 11. Export selected objects to USD using the export button.
-
 12. Click **? Help** for UI guidance anytime.
 
 ---
@@ -130,22 +122,13 @@ pipeline_ui.show_pipeline_ui()
 
 ---
 
-## Known Limitations & FAQ
-
-* Collision-safe naming affects Maya scene nodes only, not file names on disk.
-* Referenced USD nodes are read-only (cannot rename/delete).
-* If UI fails to load, verify `sys.path` and Python tab in Maya.
-* Run **Batch Path Repair** anytime to resolve missing file references.
-
----
-
 ## Example: Generate Test USD with Variants
 
 ```python
 import os
 from pxr import Usd, UsdGeom
 
-usd_path = "/home/you/Documents/MScProject/test_assets/variants_test_demo.usda"
+usd_path = "test_assets/variants_test_demo.usda"
 if os.path.exists(usd_path):
     os.remove(usd_path)
 
@@ -161,5 +144,3 @@ print("Created test USD with variants at:", usd_path)
 ```
 
 ---
-
-

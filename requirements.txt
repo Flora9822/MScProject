@@ -3,4 +3,4 @@ pytest-cov
 pytest-qt
 PySide2
 shiboken2
-codecov
+
