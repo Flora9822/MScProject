@@ -1,6 +1,3 @@
 pytest>=7.0
 pytest-cov
-pytest-qt
-PySide2
-shiboken2
-
+PySide2>=5.15
