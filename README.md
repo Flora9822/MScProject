@@ -119,7 +119,7 @@ This will launch the Asset Import & Prep Tool UI directly.
 
 ![Architecture Diagram](docs/architecture_diagram.png)
 
-*Visualizes key components and data flow.*
+
 
 ---
 
