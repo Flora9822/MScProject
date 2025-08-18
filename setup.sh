@@ -1,9 +1,3 @@
-
----
-
-### `setup.sh`
-
-```bash
 #!/bin/bash
 
 echo "Setting up Maya Asset Import Tool environment..."
@@ -44,38 +38,3 @@ echo "This will add a shelf button in Maya to launch the tool."
 
 echo ""
 echo "Setup complete. You can now launch Maya and use the tool."
-```
-
----
-
-### How to Use (Terminal)
-
-1. Give the script permission to run (only needed once):
-
-```bash
-chmod +x setup.sh
-```
-
-2. Run the setup script:
-
-```bash
-./setup.sh
-```
-
----
-
-### Post-Setup: Launching the Tool in Maya
-
-After running the script:
-
-1. Open Maya.
-2. Go to **Script Editor → Python** tab.
-3. Paste and run the following command (update the path if necessary):
-
-```python
-exec(open('/your/full/path/to/install_shelf_button.py').read())
-```
-
-This will create a shelf button in Maya. Click the button to launch the Asset Import & Preparation Tool.
-
----
